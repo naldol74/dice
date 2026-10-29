@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D 주사위 시뮬레이터</title>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%);
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            --accent-color: #6366f1;
+            --accent-hover: #4f46e5;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            cursor: pointer;
+        }
+
+        .ui-layer {
+            position: relative;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100vh;
+            padding: 24px;
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            box-shadow: var(--glass-shadow);
+        }
+
+        .title-badge {
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .title-badge i {
+            color: #818cf8;
+        }
+
+        .controls-top {
+            display: flex;
+            gap: 12px;
+        }
+
+        .icon-btn {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-main);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.18);
+            transform: translateY(-2px);
+        }
+
+        .icon-btn.active {
+            color: #818cf8;
+            border-color: rgba(129, 140, 248, 0.4);
+        }
+
+        .result-panel {
+            align-self: center;
+            text-align: center;
+            padding: 16px 36px;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+            transform: scale(0.9);
+            opacity: 0;
+        }
+
+        .result-panel.show {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .result-val {
+            font-size: 3.5rem;
+            font-weight: 900;
+            line-height: 1;
+            background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .result-label {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        footer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .roll-btn {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 18px 48px;
+            border-radius: 100px;
+            font-size: 1.3rem;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.5);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .roll-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.6);
+        }
+
+        .roll-btn:active {
+            transform: translateY(1px);
+        }
+
+        .guide-text {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 6px 16px;
+            border-radius: 20px;
+        }
+
+        /* Modal Guide */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            width: 90%;
+            max-width: 480px;
+            padding: 32px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-sub);
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .guide-step {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            align-items: flex-start;
+        }
+
+        .step-icon {
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .step-text h4 {
+            font-size: 1rem;
+            margin-bottom: 4px;
+        }
+
+        .step-text p {
+            font-size: 0.88rem;
+            color: var(--text-sub);
+            line-height: 1.4;
+        }
+
+        @media (max-width: 600px) {
+            .ui-layer { padding: 16px; }
+            .roll-btn { padding: 14px 36px; font-size: 1.1rem; }
+            .result-val { font-size: 2.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div class="ui-layer">
+        <header class="interactive">
+            <div class="glass-card title-badge">
+                <i class="fa-solid fa-dice-d6"></i>
+                <span>3D 주사위</span>
+            </div>
+            <div class="controls-top">
+                <button class="glass-card icon-btn active" id="sound-btn" title="소리 켜기/끄기">
+                    <i class="fa-solid fa-volume-high"></i>
+                </button>
+                <button class="glass-card icon-btn" id="info-btn" title="태블릿 사용 안내">
+                    <i class="fa-solid fa-circle-info"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="glass-card result-panel" id="result-panel">
+            <div class="result-val" id="result-val">-</div>
+            <div class="result-label">결과</div>
+        </div>
+
+        <footer class="interactive">
+            <button class="roll-btn" id="roll-btn">
+                <i class="fa-solid fa-rotate"></i>
+                <span>주사위 굴리기!</span>
+            </button>
+            <div class="guide-text">
+                <i class="fa-solid fa-hand-pointer"></i>
+                <span>화면 아무 데나 터치하거나 태블릿을 흔드세요</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 태블릿 사용 안내 모달 -->
+    <div class="modal" id="guide-modal">
+        <div class="glass-card modal-content interactive">
+            <div class="modal-header">
+                <h3>📱 태블릿 활용 안내</h3>
+                <button class="close-btn" id="close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="guide-step">
+                <div class="step-icon"><i class="fa-solid fa-mobile-screen-button"></i></div>
+                <div class="step-text">
+                    <h4>홈 화면에 앱으로 추가하기</h4>
+                    <p>브라우저 메뉴에서 <b>'홈 화면에 추가'</b>를 누르면 풀스크린 주사위 앱처럼 쾌적하게 사용 가능합니다.</p>
+                </div>
+            </div>
+            <div class="guide-step">
+                <div class="step-icon"><i class="fa-solid fa-hand-transform"></i></div>
+                <div class="step-text">
+                    <h4>터치 & 흔들기</h4>
+                    <p>버튼 외에도 <b>3D 화면 전체</b>를 터치하거나 태블릿을 살짝 흔들면 주사위가 통통 튑니다.</p>
+                </div>
+            </div>
+            <div class="guide-step">
+                <div class="step-icon"><i class="fa-solid fa-volume-off"></i></div>
+                <div class="step-text">
+                    <h4>소리가 안 들릴 때</h4>
+                    <p>태블릿 측면의 <b>무음/진동 모드</b>를 해제하고 볼륨을 올려주세요.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Sound Engine (Web Audio API) ---
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            }
+            playRoll() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                
+                // Shake sound series
+                for (let i = 0; i < 4; i++) {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(150 + Math.random() * 100, now + i * 0.08);
+                    osc.frequency.exponentialRampToValueAtTime(40, now + i * 0.08 + 0.05);
+                    gain.gain.setValueAtTime(0.15, now + i * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.01, now + i * 0.08 + 0.05);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + i * 0.08);
+                    osc.stop(now + i * 0.08 + 0.06);
+                }
+            }
+            playLand() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                
+                // Thud sound
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(120, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 0.15);
+                
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.16);
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        // --- Three.js 3D Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        
+        // Dark space background feeling with subtle fog
+        scene.fog = new THREE.FogExp2(0x0f172a, 0.03);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 7, 9);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // --- Lights ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 12, 7);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 25;
+        scene.add(dirLight);
+
+        const pointLight = new THREE.PointLight(0x818cf8, 1.2, 15);
+        pointLight.position.set(-4, 3, -2);
+        scene.add(pointLight);
+
+        // --- Shadow Catching Floor ---
+        const floorGeo = new THREE.PlaneGeometry(30, 30);
+        const floorMat = new THREE.ShadowMaterial({ opacity: 0.25 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -1.2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // --- Texture Canvas Generator for D6 ---
+        function createDiceTexture(number) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            // Round Rect Face Background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 256, 256);
+
+            // Subtle inner border
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.strokeRect(4, 4, 248, 248);
+
+            // Dots
+            ctx.fillStyle = (number === 1) ? '#ef4444' : '#1e293b';
+            const dotRadius = number === 1 ? 28 : 20;
+
+            const drawDot = (x, y) => {
+                ctx.beginPath();
+                ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+                ctx.fill();
+            };
+
+            const c = 128;
+            const l = 68;
+            const r = 188;
+
+            switch(number) {
+                case 1: drawDot(c, c); break;
+                case 2: drawDot(l, l); drawDot(r, r); break;
+                case 3: drawDot(l, l); drawDot(c, c); drawDot(r, r); break;
+                case 4: drawDot(l, l); drawDot(r, l); drawDot(l, r); drawDot(r, r); break;
+                case 5: drawDot(l, l); drawDot(r, l); drawDot(c, c); drawDot(l, r); drawDot(r, r); break;
+                case 6: drawDot(l, l); drawDot(r, l); drawDot(l, c); drawDot(r, c); drawDot(l, r); drawDot(r, r); break;
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        // Mapping standard D6 Face index to THREE BoxGeometry Materials
+        // BoxGeometry face order: +X(1), -X(6), +Y(2), -Y(5), +Z(3), -Z(4)
+        const materials = [
+            new THREE.MeshStandardMaterial({ map: createDiceTexture(1), roughness: 0.3, metalness: 0.1 }),
+            new THREE.MeshStandardMaterial({ map: createDiceTexture(6), roughness: 0.3, metalness: 0.1 }),
+            new THREE.MeshStandardMaterial({ map: createDiceTexture(2), roughness: 0.3, metalness: 0.1 }),
+            new THREE.MeshStandardMaterial({ map: createDiceTexture(5), roughness: 0.3, metalness: 0.1 }),
+            new THREE.MeshStandardMaterial({ map: createDiceTexture(3), roughness: 0.3, metalness: 0.1 }),
+            new THREE.MeshStandardMaterial({ map: createDiceTexture(4), roughness: 0.3, metalness: 0.1 })
+        ];
+
+        // Rounded Box geometry simulation (using standard Box Geometry)
+        const geometry = new THREE.BoxGeometry(2, 2, 2);
+        const dice = new THREE.Mesh(geometry, materials);
+        dice.castShadow = true;
+        dice.position.y = 0;
+        scene.add(dice);
+
+        // --- Target Rotations for D6 values ---
+        const faceRotations = {
+            1: { x: 0, y: -Math.PI / 2, z: 0 },
+            6: { x: 0, y: Math.PI / 2, z: 0 },
+            2: { x: -Math.PI / 2, y: 0, z: 0 },
+            5: { x: Math.PI / 2, y: 0, z: 0 },
+            3: { x: 0, y: 0, z: 0 },
+            4: { x: 0, y: Math.PI, z: 0 }
+        };
+
+        // --- Animation State ---
+        let isRolling = false;
+        let rollProgress = 0;
+        let targetValue = 1;
+        let startRot = new THREE.Euler();
+        let endRot = new THREE.Euler();
+        const animDuration = 1200; // ms
+        let startTime = 0;
+
+        function rollDice() {
+            if (isRolling) return;
+            isRolling = true;
+            sound.playRoll();
+
+            document.getElementById('result-panel').classList.remove('show');
+
+            targetValue = Math.floor(Math.random() * 6) + 1;
+            
+            // Random multiple rotations + target rotation
+            const baseRot = faceRotations[targetValue];
+            const extraX = (Math.floor(Math.random() * 3) + 3) * Math.PI * 2;
+            const extraY = (Math.floor(Math.random() * 3) + 3) * Math.PI * 2;
+            const extraZ = (Math.floor(Math.random() * 2) + 2) * Math.PI * 2;
+
+            startRot.copy(dice.rotation);
+            endRot.set(baseRot.x + extraX, baseRot.y + extraY, baseRot.z + extraZ);
+
+            startTime = performance.now();
+            animateRoll();
+        }
+
+        function animateRoll() {
+            const now = performance.now();
+            const elapsed = now - startTime;
+            let progress = Math.min(elapsed / animDuration, 1);
+
+            // Easing function (easeOutBounce-like effect)
+            const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+            
+            // Position Y Jump animation
+            const jumpHeight = Math.sin(progress * Math.PI) * 3.5;
+            dice.position.y = jumpHeight;
+
+            // Rotation interpolation
+            dice.rotation.x = THREE.MathUtils.lerp(startRot.x, endRot.x, easeOutQuart);
+            dice.rotation.y = THREE.MathUtils.lerp(startRot.y, endRot.y, easeOutQuart);
+            dice.rotation.z = THREE.MathUtils.lerp(startRot.z, endRot.z, easeOutQuart);
+
+            if (progress < 1) {
+                requestAnimationFrame(animateRoll);
+            } else {
+                dice.position.y = 0;
+                isRolling = false;
+                sound.playLand();
+                showResult(targetValue);
+            }
+        }
+
+        function showResult(val) {
+            const resultPanel = document.getElementById('result-panel');
+            const resultVal = document.getElementById('result-val');
+            resultVal.textContent = val;
+            resultPanel.classList.add('show');
+        }
+
+        // --- Render Loop ---
+        function render() {
+            requestAnimationFrame(render);
+            if (!isRolling) {
+                // Gentle floating & idle rotation
+                dice.rotation.y += 0.005;
+                dice.position.y = Math.sin(Date.now() * 0.002) * 0.1;
+            }
+            renderer.render(scene, camera);
+        }
+        render();
+
+        // --- Event Listeners ---
+        // 1. Roll Button
+        document.getElementById('roll-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            rollDice();
+        });
+
+        // 2. Canvas Tap / Click to Roll
+        container.addEventListener('click', () => {
+            rollDice();
+        });
+
+        // 3. Shake Detection for Tablets
+        let lastX = null, lastY = null, lastZ = null;
+        const shakeThreshold = 15;
+
+        window.addEventListener('devicemotion', (e) => {
+            const acc = e.accelerationIncludingGravity;
+            if (!acc) return;
+
+            if (lastX !== null) {
+                const deltaX = Math.abs(acc.x - lastX);
+                const deltaY = Math.abs(acc.y - lastY);
+                const deltaZ = Math.abs(acc.z - lastZ);
+
+                if (deltaX + deltaY + deltaZ > shakeThreshold) {
+                    rollDice();
+                }
+            }
+            lastX = acc.x;
+            lastY = acc.y;
+            lastZ = acc.z;
+        });
+
+        // 4. UI Controls (Sound & Modal)
+        const soundBtn = document.getElementById('sound-btn');
+        soundBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sound.enabled = !sound.enabled;
+            soundBtn.classList.toggle('active', sound.enabled);
+            soundBtn.innerHTML = sound.enabled ? 
+                '<i class="fa-solid fa-volume-high"></i>' : 
+                '<i class="fa-solid fa-volume-xmark"></i>';
+        });
+
+        const infoBtn = document.getElementById('info-btn');
+        const modal = document.getElementById('guide-modal');
+        const closeModal = document.getElementById('close-modal');
+
+        infoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            modal.classList.add('open');
+        });
+
+        closeModal.addEventListener('click', (e) => {
+            e.stopPropagation();
+            modal.classList.remove('open');
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('open');
+        });
+
+        // 5. Window Resize Handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
